@@ -1,0 +1,3 @@
+class AurionsAgenda{
+    constructor(){
+}
