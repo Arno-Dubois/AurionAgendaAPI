@@ -1,34 +1,51 @@
-## EN
+# Aurion Agenda API
 
-### Aurion input
+FR : https://github.com/Arno-Dubois/AurionAgendaAPI/blob/main/README_FR.md
 
-#### There 4 main trap that will be encountered when trying to fetch from Aurion:
+## Overview
 
--   Redirection : Aurion require redirection when changing page, but the redirection need other parameters so you need to manually fetch the redirection to account for parameter that may change (you will need to make 2 requests)
--   Changing parameters & in page parameters : Appart of cookie that are the same from the login to the end of the session two very import parameters for Aurion are ViewState that change whenever you change page and idts, there is multiple idt for different purpose that change from month to month. The big problem is that ViewState and idts are located in the body of HTML page. ViewState can be found in the value of an input named 'javax.faces.ViewState' and idts in the id of some div or in js script ... The idt for the Agenda is in the id of a div with class 'schedule'.
--   Header and Body parameters: there is some parameters to put in most header and body for Aurion mostly Content-Type for header and some javax parameters for body.
--   Number of link : to get to any page appart of the redirection mentionned above you also need to navigate the menu and sub-menu and for Agenda you also need to fetch the value after reaching page, that add-up to a lot of link with diferents changing parameters.
+This API provides a way to programmatically access and retrieve agenda information from Aurion, an academic platform. It addresses the challenges of Aurion's authentication and data retrieval processes, allowing developers to easily integrate Aurion agenda data into their applications.
 
-See url.md for pre made request or use Aurion normaly and record every request and response.
+## Features
 
-#### Specification for the Agenda
+-   Fetches and parses Aurion agenda data.
+-   Handles Aurion's complex redirection and authentication.
+-   Provides a simple interface for retrieving events for a given date range.
 
-The Agenda take an idt_start and an idt_end as paramter which are Unix timestamp in milliseconds.
+## Challenges with Aurion
 
-### Aurion output
+Accessing data from Aurion programmatically presents several challenges:
 
-Title of event :
-The event title are a concatenation of classroom, description, discipline, type (example : TD, PROJECT, TP) ,instructors and sometime a trailing whitespace, separated by line return
+-   **Redirection:** Aurion requires redirection when changing pages, with dynamically generated parameters.
+-   **Dynamic Parameters:** Key parameters like `ViewState` and `IDTS` change frequently and are embedded within the HTML content. `ViewState` changes with every page, and `IDTS` varies monthly.
+-   **Header and Body Requirements:** Specific header (e.g., `Content-Type`) and body parameters (`javax` parameters) are required for most requests.
+-   **Complex Navigation:** Accessing specific data requires navigating through multiple menus and sub-menus.
 
-Agenda event :
-The response will give you all events that happen between the parameter start and the end of the day of the parameter end
+Refer to `url.md` for pre-made requests, or record all requests and responses
+while using Aurion normally to understand the process.
 
-### How to use
+### Input/Output Specifications
 
-```javascript
-const AurionAgendaAPI = require("AurionAgendaAPI");
-const connection = new Connection(username, password);
-const todayAgenda = new Agenda();
-todayAgenda.setEvents = connection.fetchTodayAgenda();
-console.log(todayAgenda.getAllEvents()); // Will print all events of today
-```
+#### Input
+
+The API requires a username and password for authentication. To fetch agenda data, the following parameters are special:
+
+-   `idt_start`: A Unix timestamp (in milliseconds) representing the start date.
+-   `idt_end`: A Unix timestamp (in milliseconds) representing the end date. The API will retrieve events up to the end of the day specified by this timestamp.
+
+#### Output
+
+The API returns a list of agenda events. Each event contains the following information:
+
+-   **Title:** A concatenated string containing classroom, description, discipline, event type (e.g., TD, PROJECT, TP), and instructors, separated by line breaks. A trailing whitespace may be present.
+-   **Start Time:** In ISO 8601 format. (YYYY-MM-DDTHH:mm:ss.sssZ)
+-   **End Time:** In ISO 8601 format. (YYYY-MM-DDTHH:mm:ss.sssZ)
+
+## Getting Started
+
+### Prerequisites
+
+-   Node.js (version X or higher)
+-   npm or yarn
+
+### Installation
