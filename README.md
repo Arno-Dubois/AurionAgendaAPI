@@ -1,6 +1,6 @@
 # Aurion Agenda API
 
-FR : https://github.com/Arno-Dubois/AurionAgendaAPI/blob/main/README_FR.md
+FR : https://github.com/Arno-Dubois/AurionAgendaAPI/blob/develop/README_FR.md
 
 ## Overview
 
