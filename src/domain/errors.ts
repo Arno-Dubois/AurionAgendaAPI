@@ -28,6 +28,18 @@ export class RangeTooLargeError extends InvalidRangeError {
   }
 }
 
+/** A `from` / `to` value could not be understood ("tomorow", "+7D"…). */
+export class InvalidDateExpressionError extends AurionAgendaError {
+  readonly code = "INVALID_DATE_EXPRESSION";
+
+  constructor(
+    readonly expression: string,
+    detail: string,
+  ) {
+    super(`Invalid date expression "${expression}": ${detail}`);
+  }
+}
+
 /** Aurion rejected the username/password. Retrying will not help. */
 export class InvalidCredentialsError extends AurionAgendaError {
   readonly code = "INVALID_CREDENTIALS";

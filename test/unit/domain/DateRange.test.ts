@@ -1,7 +1,7 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
 import { DateRange } from "../../../src/domain/DateRange.js";
-import { InvalidRangeError } from "../../../src/domain/errors.js";
+import { InvalidRangeError, RangeTooLargeError } from "../../../src/domain/errors.js";
 
 const zone = "Europe/Paris";
 const at = (iso: string) => DateTime.fromISO(iso, { zone });
@@ -56,5 +56,37 @@ describe("DateRange", () => {
   it("keeps an already aligned UTC range unchanged", () => {
     const range = DateRange.fromISO("2026-11-16T00:00Z", "2026-11-22T00:00Z", "utc");
     expect(range.toWholeUtcDays().toString()).toBe(range.toString());
+  });
+
+  it("tells whether it contains another range", () => {
+    const week = DateRange.days(at("2026-11-16"), at("2026-11-22"));
+    expect(week.contains(DateRange.days(at("2026-11-16"), at("2026-11-16")))).toBe(true);
+    expect(week.contains(week)).toBe(true);
+    expect(week.contains(DateRange.days(at("2026-11-22"), at("2026-11-23")))).toBe(false);
+    expect(week.contains(DateRange.days(at("2026-11-15"), at("2026-11-16")))).toBe(false);
+  });
+
+  it("checks its length against a maximum", () => {
+    const year = DateRange.days(at("2026-09-01"), at("2027-08-31"));
+    expect(year.assertAtMostDays(365)).toBe(year);
+    expect(() => year.assertAtMostDays(364)).toThrow(RangeTooLargeError);
+    // A partial day counts as a whole one.
+    expect(() =>
+      DateRange.of(at("2026-11-16T00:00"), at("2026-11-17T00:01")).assertAtMostDays(1),
+    ).toThrow("2 days long, the maximum is 1 days");
+  });
+
+  it("widens to whole days in a zone, keeping ends already at midnight", () => {
+    const range = DateRange.of(at("2026-11-16T10:30"), at("2026-11-18T09:00"));
+    expect(range.toWholeDays(zone).toString()).toBe(
+      "[2026-11-16T00:00:00.000+01:00 → 2026-11-19T00:00:00.000+01:00)",
+    );
+    const aligned = DateRange.days(at("2026-11-16"), at("2026-11-17"));
+    expect(aligned.toWholeDays(zone).toString()).toBe(aligned.toString());
+    // 23:30 UTC is already the next day in Paris.
+    const utc = DateRange.fromISO("2026-11-18T23:30Z", "2026-11-18T23:45Z", "utc");
+    expect(utc.toWholeDays(zone).toString()).toBe(
+      "[2026-11-19T00:00:00.000+01:00 → 2026-11-20T00:00:00.000+01:00)",
+    );
   });
 });

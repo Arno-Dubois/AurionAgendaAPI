@@ -1,7 +1,7 @@
 import type { AurionConfig } from "../../config/AurionConfig.js";
 import type { CourseEvent } from "../../domain/CourseEvent.js";
 import type { DateRange } from "../../domain/DateRange.js";
-import { RangeTooLargeError, SessionExpiredError } from "../../domain/errors.js";
+import { SessionExpiredError } from "../../domain/errors.js";
 import type { ScheduleProvider } from "../../ports/ScheduleProvider.js";
 import { SerialQueue } from "../../shared/SerialQueue.js";
 import { AurionEventMapper } from "./AurionEventMapper.js";
@@ -47,10 +47,7 @@ export class AurionScheduleProvider implements ScheduleProvider {
   }
 
   async getEvents(range: DateRange): Promise<CourseEvent[]> {
-    const days = Math.ceil(range.durationInDays);
-    if (days > this.#config.maxRangeDays) {
-      throw new RangeTooLargeError(days, this.#config.maxRangeDays);
-    }
+    range.assertAtMostDays(this.#config.maxRangeDays);
 
     // Aurion's calendar asks for whole UTC days and filters on its side with its own timezone
     // rules. Asking for one extra day on each side and filtering here avoids edge cases.
