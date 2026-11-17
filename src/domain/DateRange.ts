@@ -11,7 +11,7 @@ export class DateRange {
   private constructor(
     readonly from: DateTime<true>,
     readonly to: DateTime<true>,
-  ) { }
+  ) {}
 
   static of(from: DateTime, to: DateTime): DateRange {
     const start = assertValid(from, "start");
