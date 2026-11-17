@@ -1,17 +1,19 @@
 /**
  * Manual check against the real Aurion, using credentials from `.env`:
  *
- *   pnpm events                                   # today + 7 days
- *   pnpm events -- --from 2026-11-16 --to 2026-11-30
- *   pnpm events -- --from 2026-11-16 --to 2026-11-30 --json
+ *   pnpm events                                   # today + 6 days
+ *   pnpm events --from 2026-11-16 --to 2026-11-30
+ *   pnpm events --from now --to +P1D --json
+ *
+ * `--from` / `--to` accept the same expressions as the API (see DateExpression).
  */
 import { parseArgs } from "node:util";
-import { DateTime } from "luxon";
+import { ScheduleService } from "./application/ScheduleService.js";
 import { ConfigError, loadConfigFromEnv } from "./config/AurionConfig.js";
 import type { CourseEvent } from "./domain/CourseEvent.js";
-import { DateRange } from "./domain/DateRange.js";
 import { AurionAgendaError } from "./domain/errors.js";
 import { AurionScheduleProvider } from "./infrastructure/aurion/AurionScheduleProvider.js";
+import { systemClock } from "./ports/Clock.js";
 
 async function main(): Promise<number> {
   const { values } = parseArgs({
@@ -23,17 +25,9 @@ async function main(): Promise<number> {
   });
 
   const config = loadConfigFromEnv();
-  const zone = config.timezone;
-  const from = values.from
-    ? DateTime.fromISO(values.from, { zone })
-    : DateTime.now().setZone(zone).startOf("day");
-  // A bare date as --to means "until the end of that day".
-  const to = values.to ? endOfInput(values.to, zone) : from.plus({ days: 7 });
-  const range = DateRange.of(from, to);
-
-  const provider = new AurionScheduleProvider(config);
+  const service = new ScheduleService(new AurionScheduleProvider(config), systemClock, config);
   const started = performance.now();
-  const events = await provider.getEvents(range);
+  const { range, events } = await service.between(values.from ?? "today", values.to ?? "today+P6D");
   const elapsed = Math.round(performance.now() - started);
 
   if (values.json) {
@@ -43,11 +37,6 @@ async function main(): Promise<number> {
     console.error(`\n${events.length} events in ${range.toString()} (${elapsed} ms)`);
   }
   return 0;
-}
-
-function endOfInput(value: string, zone: string): DateTime {
-  const date = DateTime.fromISO(value, { zone });
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? date.plus({ days: 1 }).startOf("day") : date;
 }
 
 function printTable(events: readonly CourseEvent[]): void {

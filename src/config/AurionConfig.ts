@@ -1,6 +1,9 @@
 import { IANAZone } from "luxon";
 import { z } from "zod";
 import { Credentials } from "../domain/Credentials.js";
+import { parseEnv, positiveInt } from "./env.js";
+
+export { ConfigError } from "./env.js";
 
 export interface AurionConfig {
   baseUrl: URL;
@@ -22,8 +25,6 @@ export const DEFAULTS = {
   requestTimeoutMs: 30_000,
 } as const;
 
-const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
-
 const EnvSchema = z.object({
   AURION_USERNAME: z.string({ error: "is required" }).trim().min(1, "is required"),
   AURION_PASSWORD: z.string({ error: "is required" }).min(1, "is required"),
@@ -40,22 +41,9 @@ const EnvSchema = z.object({
   AURION_REQUEST_TIMEOUT_MS: positiveInt(DEFAULTS.requestTimeoutMs),
 });
 
-export class ConfigError extends Error {
-  override name = "ConfigError";
-}
-
 /** Reads and validates configuration from environment variables. */
 export function loadConfigFromEnv(env: NodeJS.ProcessEnv = process.env): AurionConfig {
-  // Treat empty strings ("AURION_TIMEZONE=") as unset so defaults apply.
-  const cleaned = Object.fromEntries(Object.entries(env).filter(([, value]) => value !== ""));
-  const parsed = EnvSchema.safeParse(cleaned);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`)
-      .join("\n");
-    throw new ConfigError(`Invalid configuration:\n${issues}`);
-  }
-  const e = parsed.data;
+  const e = parseEnv(EnvSchema, env);
   return {
     baseUrl: new URL(e.AURION_BASE_URL),
     credentials: new Credentials(e.AURION_USERNAME, e.AURION_PASSWORD),

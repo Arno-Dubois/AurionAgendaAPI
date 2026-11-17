@@ -1,7 +1,7 @@
 {
   "name": "aurion-agenda-api",
   "version": "0.1.0",
-  "description": "Self-hosted API that exposes your JUNIA Aurion schedule as JSON and iCal.",
+  "description": "Self-hosted REST API that exposes your JUNIA Aurion schedule as JSON (and soon iCal.)",
   "type": "module",
   "private": true,
   "author": "Arno Dubois",
@@ -30,13 +30,19 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "dev": "tsx watch --env-file-if-exists=.env src/main.ts",
+    "start": "node --env-file-if-exists=.env dist/main.js",
     "events": "tsx --env-file-if-exists=.env src/cli.ts",
     "fixtures:from-har": "tsx scripts/har-to-fixtures.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
   },
   "dependencies": {
+    "@fastify/swagger": "^9.9.4",
+    "@fastify/swagger-ui": "^6.1.4",
     "cheerio": "^1.2.0",
     "domhandler": "^5.0.3",
+    "fastify": "^5.12.8",
+    "fastify-type-provider-zod": "^7.0.0",
     "luxon": "^3.7.2",
     "zod": "^4.6.7"
   },
