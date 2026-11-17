@@ -1,0 +1,5 @@
+dist/
+coverage/
+test/fixtures/
+pnpm-lock.yaml
+LICENSE

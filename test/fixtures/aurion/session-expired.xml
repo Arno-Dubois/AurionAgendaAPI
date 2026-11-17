@@ -1,0 +1,1 @@
+<partial-response id="j_id1"><error><error-name>class javax.faces.application.ViewExpiredException</error-name><error-message><![CDATA[viewId:/Planning.xhtml - View /Planning.xhtml could not be restored.]]></error-message></error></partial-response>

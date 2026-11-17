@@ -1,15 +1,55 @@
 {
-  "name": "aurionagendaapi",
-  "version": "1.0.0",
-  "description": "An API to get agenda from JUNIA Web Aurion",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "name": "aurion-agenda-api",
+  "version": "0.1.0",
+  "description": "Self-hosted API that exposes your JUNIA Aurion schedule as JSON and iCal.",
+  "type": "module",
+  "private": true,
+  "author": "Arno Dubois",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "AurionAgendaAPI"
+    "url": "git+https://github.com/Arno-Dubois/AurionAgendaAPI.git"
   },
-  "author": "Arno Dubois",
-  "license": "SEE LICENSE IN LICENSE"
+  "packageManager": "pnpm@12.21.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "24.22.3",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "events": "tsx --env-file-if-exists=.env src/cli.ts",
+    "fixtures:from-har": "tsx scripts/har-to-fixtures.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "domhandler": "^5.0.3",
+    "luxon": "^3.7.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/luxon": "^3.7.6",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.0"
+  }
 }

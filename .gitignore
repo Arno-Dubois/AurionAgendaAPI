@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+
+# HAR captures contain your password and session cookies in plain text
+*.har
