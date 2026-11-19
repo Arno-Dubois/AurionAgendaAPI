@@ -16,6 +16,11 @@ export class UnauthorizedError extends Error {
   override name = "UnauthorizedError";
 }
 
+/** A resource that does not exist, or that the caller may not know exists. */
+export class NotFoundError extends Error {
+  override name = "NotFoundError";
+}
+
 export function problem(status: number, code: string, detail: string): Problem {
   return { type: "about:blank", title: STATUS_CODES[status] ?? "Error", status, detail, code };
 }
@@ -30,6 +35,9 @@ export function toProblem(error: unknown): Problem {
   }
   if (error instanceof UnauthorizedError) {
     return problem(401, "UNAUTHORIZED", error.message);
+  }
+  if (error instanceof NotFoundError) {
+    return problem(404, "NOT_FOUND", error.message);
   }
   if (error instanceof InvalidDateExpressionError || error instanceof InvalidRangeError) {
     return problem(400, error.code, error.message);

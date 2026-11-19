@@ -1,9 +1,10 @@
 # AurionAgendaAPI
 
 Self-hosted TypeScript service that reads your timetable from **Aurion** (the JUNIA student
-portal) and exposes it as a JSON REST API, with an iCal feed on the way.
+portal) and exposes it as a JSON REST API and as an iCal feed you can subscribe to from
+Google Calendar, Apple Calendar or Outlook.
 
-> **Status:** milestone 2 of the [roadmap](#roadmap). The scraper, a CLI and the REST API work; the iCal feed is next.
+> **Status:** milestone 3 of the [roadmap](#roadmap). The scraper, a CLI, the REST API and the iCal feed work; Docker packaging is next.
 
 ```text
 $ curl 'localhost:3000/v1/events/next'
@@ -60,6 +61,8 @@ For a long-running instance: `pnpm build && pnpm start`.
 | `AURION_REQUEST_TIMEOUT_MS`          | `30000`                    | a whole school year takes about 5 s                                                             |
 | `HOST`, `PORT`                       | `127.0.0.1`, `3000`        | the API only listens locally unless you change `HOST`                                           |
 | `API_TOKEN`                          | (none)                     | when set, `/v1` requires `Authorization: Bearer <token>`. Set it before exposing the API        |
+| `CALENDAR_TOKEN`                     | (none, feed disabled)      | secret part of the [iCal feed](#calendar-subscription-ical) URL: letters, digits, `-`, `_`      |
+| `CALENDAR_NAME`                      | `Aurion timetable`         | name calendar apps show for the subscription                                                    |
 | `CACHE_TTL_SECONDS`                  | `900`                      | how long Aurion answers are reused; `0` disables the cache                                      |
 | `LOG_LEVEL`                          | `info`                     | `debug`, `warn`, `silent`…                                                                      |
 
@@ -76,6 +79,7 @@ Interactive documentation (OpenAPI 3, generated from the zod schemas) is served 
 | `GET /v1/events/current`       | events in progress right now                                      |
 | `GET /v1/events/next`          | the next event to start, even after the holidays (`null` if none) |
 | `GET /health`                  | liveness, does not contact Aurion                                 |
+| `GET /cal/<token>.ics`         | the [iCal feed](#calendar-subscription-ical)                      |
 
 `from` and `to` accept absolute or relative dates:
 
@@ -136,17 +140,78 @@ Each event looks like this (`--json`):
 `title` is the subject, or the first line of the description for events without one
 (meetings, talks, workshops).
 
+## Calendar subscription (iCal)
+
+Generate a secret and add it to `.env`, then restart the server:
+
+```bash
+echo "CALENDAR_TOKEN=$(openssl rand -hex 32)" >> .env
+```
+
+The feed is then served on:
+
+```text
+http://127.0.0.1:3000/cal/<CALENDAR_TOKEN>.ics?pastWeeks=2&futureWeeks=8
+```
+
+| Parameter     | Default | Meaning                                      |
+| ------------- | ------- | -------------------------------------------- |
+| `pastWeeks`   | `2`     | whole weeks before the current one (0 to 52) |
+| `futureWeeks` | `8`     | whole weeks after the current one (0 to 52)  |
+
+The range always starts on a Monday and ends on a Sunday, so it stays the same all week and
+repeated refreshes are answered from the cache. Each event becomes:
+
+| iCal property | Content                                                                     |
+| ------------- | --------------------------------------------------------------------------- |
+| `UID`         | the Aurion event id, so refreshes update events instead of duplicating them |
+| `SUMMARY`     | the title, prefixed with `[EXAM]` for exams                                 |
+| `LOCATION`    | the Aurion room code                                                        |
+| `DESCRIPTION` | the school's free text, then the teacher and the session kind               |
+| `CATEGORIES`  | the session kind (`COURS_TD`, `TP`…) and `EXAM`                             |
+| `DTSTART/END` | UTC; apps show them in your zone (`X-WR-TIMEZONE` is `AURION_TIMEZONE`)     |
+
+The feed asks apps to refresh every hour (`REFRESH-INTERVAL` and `X-PUBLISHED-TTL`).
+
+**Subscribing.** Calendar apps fetch the feed from their own servers, so the URL must be
+reachable from the internet over HTTPS: a reverse proxy on a server (see milestone 4), or a
+tunnel such as Tailscale Funnel in front of `127.0.0.1:3000`. Then:
+
+- **Google Calendar** (web): _Other calendars_ → **+** → _From URL_. Google refreshes on its
+  own schedule (often every few hours) and ignores the requested interval.
+- **Apple Calendar**: _File_ → _New Calendar Subscription…_. Set auto-refresh to every hour.
+- **Outlook**: _Add calendar_ → _Subscribe from web_.
+
+To try the output without exposing anything, export a file and import it once (a copy that
+will not update):
+
+```bash
+pnpm events --from startOfWeek --to +P8W --ics > timetable.ics
+```
+
+**Security.** The URL is the password: calendar apps cannot send an `Authorization` header,
+so whoever has the link can read your timetable. Keep `CALENDAR_TOKEN` separate from
+`API_TOKEN` so you can revoke one without the other. The token is compared in constant
+time, a wrong token gets a plain `404` without contacting Aurion, and it is redacted from the
+logs (`/cal/[REDACTED]`). To revoke a leaked link, change `CALENDAR_TOKEN` and subscribe
+again.
+
+When Aurion is unreachable the feed answers `503` rather than an empty calendar, so apps
+keep showing the last copy they fetched.
+
 ## Architecture
 
 ```text
 src/
 ├── domain/            Pure model, no I/O: CourseEvent, DateRange, DateExpression,
 │                      Credentials, typed errors
-├── ports/             ScheduleProvider and Clock interfaces (what the app needs)
-├── application/       ScheduleService: use cases (between, today, week, current, next)
-├── http/              Fastify app, zod schemas → OpenAPI, problem+json errors, bearer auth
+├── ports/             ScheduleProvider, CalendarExporter and Clock interfaces
+├── application/       ScheduleService: use cases (between, today, week(s), current, next)
+├── http/              Fastify app, zod schemas → OpenAPI, problem+json errors, bearer auth,
+│                      iCal feed route, log redaction
 ├── infrastructure/
 │   ├── cache/         CachedScheduleProvider: TTL cache + single-flight (decorator)
+│   ├── ical/          ICalExporter: RFC 5545 writer (escaping, 75-octet line folding)
 │   └── aurion/        How we get it from Aurion
 │       ├── AurionHttpClient     fetch wrapper: cookies, no auto-redirects, timeouts
 │       ├── JsfForm              serialises a <form> the way a browser does
@@ -175,13 +240,18 @@ Design choices:
   round-trip. Failures are not cached.
 - **Injected clock.** "now" comes from a `Clock`, so relative dates, `current` and `next`
   are tested at fixed instants, including across a daylight-saving change.
+- **Exporters behind a port.** The feed route only knows `CalendarExporter`. The iCalendar
+  writer is hand-written (about 100 lines) rather than a dependency: the subset needed is
+  small, and owning escaping and line folding keeps them unit-tested. Its output is checked
+  against Mozilla's `ical.js` parser.
 - **No hard-coded JSF ids.** `JsfForm` reads every field from the page like a browser
   would. Tests check that it rebuilds the **exact request bodies recorded from a real browser**.
 - **Typed failures.** `InvalidCredentialsError`, `SessionExpiredError`,
   `AurionUnavailableError`, `AurionLayoutChangedError`, `RangeTooLargeError` map to HTTP
   statuses in one place (`http/problem.ts`); unexpected errors never leak their message.
 - **Secrets stay secret.** `Credentials` redacts the password from `JSON.stringify`,
-  `console.log` and string conversion. HAR files are git-ignored.
+  `console.log` and string conversion. Tokens are compared in constant time and the
+  calendar token is redacted from request logs. HAR files are git-ignored.
 
 The reverse-engineered protocol is documented in [docs/aurion-protocol.md](docs/aurion-protocol.md).
 
@@ -214,7 +284,7 @@ pseudonyms and refuses to write a fixture that contains your login.
 - [x] **0 — Spike:** protocol captured, anonymised fixtures
 - [x] **1 — Scraper core:** typed client, tests against recorded responses, CLI
 - [x] **2 — REST API:** `GET /v1/events?from=…&to=…`, relative dates (`now`, `+P7D`), `/current`, `/next`, cache, OpenAPI docs
-- [ ] **3 — iCal feed:** subscribe from Google/Apple/Outlook calendar
+- [x] **3 — iCal feed:** `GET /cal/<token>.ics`, subscribe from Google/Apple/Outlook calendar
 - [ ] **4 — Ship:** Dockerfile, docker-compose, deployment guide
 - [ ] Ideas: change notifications (webhooks), grades
 

@@ -1,7 +1,7 @@
 {
   "name": "aurion-agenda-api",
   "version": "0.1.0",
-  "description": "Self-hosted REST API that exposes your JUNIA Aurion schedule as JSON (and soon iCal.)",
+  "description": "Self-hosted REST API and iCal feed for your JUNIA Aurion schedule.",
   "type": "module",
   "private": true,
   "author": "Arno Dubois",

@@ -53,6 +53,23 @@ describe("ScheduleService (recorded school year, Thursday 19 Nov 2026 10:00)", (
     expect(nextWeek.events.filter((e) => e.isExam)).toHaveLength(1);
   });
 
+  it("returns several whole weeks around the current one", async () => {
+    const { range, events } = await service.weeks(-2, 8);
+    expect(range.from.toISODate()).toBe("2026-11-02");
+    expect(range.to.toISODate()).toBe("2027-01-18");
+    expect(events.every((e) => range.overlaps(e))).toBe(true);
+    // The range stays the same all week long, so a polling calendar app hits the cache.
+    clock.set("2026-11-22T23:59");
+    expect(String((await service.weeks(-2, 8)).range)).toBe(String(range));
+  });
+
+  it("rejects backwards or fractional week offsets", async () => {
+    await expect(service.weeks(1, 0)).rejects.toThrow(RangeError);
+    await expect(service.weeks(0.5, 1)).rejects.toThrow(RangeError);
+    await expect(service.weeks(-52, 52)).rejects.toThrow(RangeTooLargeError);
+    expect(provider.calls).toHaveLength(0);
+  });
+
   it("finds the events in progress", async () => {
     const { at, events } = await service.current();
     expect(at.toISO()).toBe("2026-11-19T10:00:00.000+01:00");

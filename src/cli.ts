@@ -4,6 +4,7 @@
  *   pnpm events                                   # today + 6 days
  *   pnpm events --from 2026-11-16 --to 2026-11-30
  *   pnpm events --from now --to +P1D --json
+ *   pnpm events --from startOfWeek --to +P8W --ics > timetable.ics   # import into a calendar
  *
  * `--from` / `--to` accept the same expressions as the API (see DateExpression).
  */
@@ -13,6 +14,7 @@ import { ConfigError, loadConfigFromEnv } from "./config/AurionConfig.js";
 import type { CourseEvent } from "./domain/CourseEvent.js";
 import { AurionAgendaError } from "./domain/errors.js";
 import { AurionScheduleProvider } from "./infrastructure/aurion/AurionScheduleProvider.js";
+import { ICalExporter } from "./infrastructure/ical/ICalExporter.js";
 import { systemClock } from "./ports/Clock.js";
 
 async function main(): Promise<number> {
@@ -21,6 +23,7 @@ async function main(): Promise<number> {
       from: { type: "string" },
       to: { type: "string" },
       json: { type: "boolean", default: false },
+      ics: { type: "boolean", default: false },
     },
   });
 
@@ -30,7 +33,11 @@ async function main(): Promise<number> {
   const { range, events } = await service.between(values.from ?? "today", values.to ?? "today+P6D");
   const elapsed = Math.round(performance.now() - started);
 
-  if (values.json) {
+  if (values.ics) {
+    const exporter = new ICalExporter();
+    const calendar = { name: "Aurion timetable", timezone: config.timezone, events };
+    process.stdout.write(exporter.export({ ...calendar, generatedAt: service.now() }));
+  } else if (values.json) {
     console.log(JSON.stringify(events, null, 2));
   } else {
     printTable(events);

@@ -71,8 +71,24 @@ export class ScheduleService {
 
   /** Monday to Sunday; `offset` 1 is next week, -1 last week. */
   async week(offset = 0): Promise<Schedule> {
-    const monday = this.now().startOf("week").plus({ weeks: offset });
-    return this.#load(DateRange.of(monday, monday.plus({ weeks: 1 })));
+    return this.weeks(offset, offset);
+  }
+
+  /**
+   * Whole weeks, from the Monday of week `first` to the Sunday of week `last` (offsets from
+   * the current week). `weeks(-2, 8)` covers two weeks back to eight weeks ahead.
+   *
+   * Aligning on weeks keeps the range identical all week long, which makes repeated calls
+   * (a calendar app polling a feed) hit the cache.
+   */
+  async weeks(first: number, last: number): Promise<Schedule> {
+    if (!Number.isInteger(first) || !Number.isInteger(last) || last < first) {
+      throw new RangeError("weeks(first, last) needs integers with first <= last.");
+    }
+    const monday = this.now().startOf("week");
+    return this.#load(
+      DateRange.of(monday.plus({ weeks: first }), monday.plus({ weeks: last + 1 })),
+    );
   }
 
   /** Events happening right now (usually zero or one, but events can overlap). */

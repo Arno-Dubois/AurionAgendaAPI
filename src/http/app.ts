@@ -10,13 +10,18 @@ import {
 import { z } from "zod";
 import type { ScheduleService } from "../application/ScheduleService.js";
 import { bearerAuth } from "./auth.js";
+import { serializeRequest } from "./logging.js";
 import { errorHandler, problem, sendProblem } from "./problem.js";
+import { type CalendarFeedOptions, calendarRoutes } from "./routes/calendar.js";
 import { eventRoutes } from "./routes/events.js";
 
 export interface AppOptions {
   service: ScheduleService;
   /** When set, /v1 routes require `Authorization: Bearer <apiToken>`. */
   apiToken?: string | null;
+  /** When set, serves the iCal feed at `/cal/<token>.ics`. */
+  calendar?: CalendarFeedOptions | null;
+  /** Request URLs are always logged with secrets redacted. */
   logger?: FastifyServerOptions["logger"];
   version?: string;
 }
@@ -25,8 +30,8 @@ export interface AppOptions {
  * Builds the HTTP application without starting it, so tests can drive it with `inject()`.
  */
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
-  const { service, apiToken = null, logger = false, version = "0.0.0" } = options;
-  const app = Fastify({ logger }).withTypeProvider<ZodTypeProvider>();
+  const { service, apiToken = null, calendar = null, logger = false, version = "0.0.0" } = options;
+  const app = Fastify({ logger: withSafeSerializers(logger) }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -85,5 +90,15 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     { prefix: "/v1" },
   );
 
+  if (calendar !== null) await app.register(calendarRoutes(service, calendar));
+
   return app;
+}
+
+function withSafeSerializers(
+  logger: AppOptions["logger"],
+): Exclude<AppOptions["logger"], undefined> {
+  if (logger === false || logger === undefined) return false;
+  const options = logger === true ? {} : logger;
+  return { ...options, serializers: { req: serializeRequest, ...options.serializers } };
 }

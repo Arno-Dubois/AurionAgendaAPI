@@ -8,6 +8,8 @@ describe("loadServerConfigFromEnv", () => {
       host: "127.0.0.1",
       port: 3000,
       apiToken: null,
+      calendarToken: null,
+      calendarName: "Aurion timetable",
       cacheTtlSeconds: 900,
       logLevel: "info",
     });
@@ -28,6 +30,24 @@ describe("loadServerConfigFromEnv", () => {
 
   it("treats an empty API_TOKEN as unset", () => {
     expect(loadServerConfigFromEnv({ API_TOKEN: "" }).apiToken).toBeNull();
+  });
+
+  it("enables the iCal feed with CALENDAR_TOKEN", () => {
+    const config = loadServerConfigFromEnv({
+      CALENDAR_TOKEN: "0123456789abcdef_-XYZ",
+      CALENDAR_NAME: "JUNIA",
+    });
+    expect(config).toMatchObject({ calendarToken: "0123456789abcdef_-XYZ", calendarName: "JUNIA" });
+    expect(loadServerConfigFromEnv({ CALENDAR_TOKEN: "" }).calendarToken).toBeNull();
+  });
+
+  it("rejects calendar tokens that are short or would need escaping in a URL", () => {
+    expect(() => loadServerConfigFromEnv({ CALENDAR_TOKEN: "short" })).toThrow(
+      /CALENDAR_TOKEN: must be at least 16 characters/,
+    );
+    expect(() => loadServerConfigFromEnv({ CALENDAR_TOKEN: "0123456789abcdef/?#" })).toThrow(
+      /CALENDAR_TOKEN: may only contain/,
+    );
   });
 
   it("rejects short tokens, bad ports and unknown log levels", () => {

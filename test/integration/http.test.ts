@@ -6,6 +6,7 @@ import { Credentials } from "../../src/domain/Credentials.js";
 import { buildApp } from "../../src/http/app.js";
 import { AurionScheduleProvider } from "../../src/infrastructure/aurion/AurionScheduleProvider.js";
 import { CachedScheduleProvider } from "../../src/infrastructure/cache/CachedScheduleProvider.js";
+import { ICalExporter } from "../../src/infrastructure/ical/ICalExporter.js";
 import { BASE_URL, FakeAurion, VALID_PASSWORD, VALID_USERNAME } from "../support/FakeAurion.js";
 import { fixedClock } from "../support/InMemoryScheduleProvider.js";
 
@@ -29,8 +30,11 @@ async function createStack(clock = fixedClock("2026-11-18T10:00")) {
     timezone: DEFAULTS.timezone,
     maxRangeDays: DEFAULTS.maxRangeDays,
   });
-  return { aurion, app: await buildApp({ service }) };
+  const calendar = { token: CALENDAR_TOKEN, name: "Aurion", exporter: new ICalExporter() };
+  return { aurion, app: await buildApp({ service, calendar }) };
 }
+
+const CALENDAR_TOKEN = "integration-calendar-token";
 
 describe("HTTP API → cache → scraper → fake Aurion", () => {
   let stack: Awaited<ReturnType<typeof createStack>>;
@@ -59,6 +63,22 @@ describe("HTTP API → cache → scraper → fake Aurion", () => {
     // "today" and "current" are answered from the week; "next" looks 14 days ahead.
     expect(stack.aurion.logins).toBe(1);
     expect(stack.aurion.planningAjaxCalls).toHaveLength(2);
+  });
+
+  it("serves the iCal feed, answering hourly refreshes from the cache", async () => {
+    const clock = fixedClock("2026-11-18T10:00");
+    stack = await createStack(clock);
+    const first = await stack.app.inject(`/cal/${CALENDAR_TOKEN}.ics`);
+    clock.set("2026-11-18T10:00:30");
+    const refresh = await stack.app.inject(`/cal/${CALENDAR_TOKEN}.ics`);
+
+    expect(first.statusCode).toBe(200);
+    // The fake Aurion answers every range with the recorded week.
+    expect(first.body.split("BEGIN:VEVENT").length - 1).toBe(10);
+    const withoutStamp = (ics: string) => ics.replaceAll(/DTSTAMP:\w+/g, "");
+    expect(withoutStamp(refresh.body)).toBe(withoutStamp(first.body));
+    expect(stack.aurion.logins).toBe(1);
+    expect(stack.aurion.planningAjaxCalls).toHaveLength(1);
   });
 
   it("logs in again transparently when the Aurion session has expired", async () => {

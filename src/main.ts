@@ -12,6 +12,7 @@ import { loadServerConfigFromEnv } from "./config/ServerConfig.js";
 import { buildApp } from "./http/app.js";
 import { AurionScheduleProvider } from "./infrastructure/aurion/AurionScheduleProvider.js";
 import { CachedScheduleProvider } from "./infrastructure/cache/CachedScheduleProvider.js";
+import { ICalExporter } from "./infrastructure/ical/ICalExporter.js";
 import { systemClock } from "./ports/Clock.js";
 
 async function main(): Promise<void> {
@@ -33,6 +34,10 @@ async function main(): Promise<void> {
   const app = await buildApp({
     service,
     apiToken: server.apiToken,
+    calendar:
+      server.calendarToken === null
+        ? null
+        : { token: server.calendarToken, name: server.calendarName, exporter: new ICalExporter() },
     version,
     logger: {
       level: server.logLevel,
@@ -54,7 +59,14 @@ async function main(): Promise<void> {
   }
 
   await app.listen({ host: server.host, port: server.port });
-  app.log.info(`API docs at http://${server.host}:${server.port}/docs`);
+  const base = `http://${server.host}:${server.port}`;
+  app.log.info(`API docs at ${base}/docs`);
+  // The token itself is never logged.
+  app.log.info(
+    server.calendarToken === null
+      ? "iCal feed disabled (set CALENDAR_TOKEN to enable it)"
+      : `iCal feed at ${base}/cal/<CALENDAR_TOKEN>.ics`,
+  );
 }
 
 main().catch((error: unknown) => {
