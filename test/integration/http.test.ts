@@ -1,4 +1,3 @@
-import { DateTime } from "luxon";
 import { afterEach, describe, expect, it } from "vitest";
 import { ScheduleService } from "../../src/application/ScheduleService.js";
 import { DEFAULTS } from "../../src/config/AurionConfig.js";
@@ -57,8 +56,10 @@ describe("HTTP API → cache → scraper → fake Aurion", () => {
     expect(current.json<{ events: { subject: string }[] }>().events[0]?.subject).toBe(
       "Human Aspects of Management",
     );
-    const nextStart = next.json<{ event: { start: string } }>().event.start;
-    expect(DateTime.fromISO(nextStart).toFormat("HH:mm")).toBe("13:30");
+    // Compared as text: the API answers in Paris time whatever the machine's zone is.
+    expect(next.json<{ event: { start: string } }>().event.start).toBe(
+      "2026-11-18T13:30:00.000+01:00",
+    );
 
     // "today" and "current" are answered from the week; "next" looks 14 days ahead.
     expect(stack.aurion.logins).toBe(1);
